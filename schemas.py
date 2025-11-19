@@ -1,48 +1,89 @@
 """
-Database Schemas
+Database Schemas for SRH Student Marketplace
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
+Each Pydantic model corresponds to a MongoDB collection (lowercased class name).
 
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Collections:
+- user
+- listing
+- message
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel, Field, HttpUrl, EmailStr
+from typing import Optional, List
+from datetime import datetime
 
-# Example schemas (replace with your own):
+# ---------- Core Domain Schemas ----------
 
 class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
     name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+    email: EmailStr = Field(..., description="Student email address")
+    password_hash: str = Field(..., description="Hashed password (bcrypt)")
+    avatar_url: Optional[HttpUrl] = Field(None, description="Public URL of avatar image")
+    campus: str = Field("Berlin", description="Campus name")
+    is_admin: bool = Field(False, description="Admin privileges")
+    is_blocked: bool = Field(False, description="Whether the user is blocked")
 
-class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
 
-# Add your own schemas here:
-# --------------------------------------------------
+class Listing(BaseModel):
+    user_id: str = Field(..., description="Owner user id (stringified ObjectId)")
+    images: List[str] = Field(default_factory=list, description="Array of image URLs")
+    title: str
+    description: str
+    price: float = Field(..., ge=0)
+    category: str = Field(..., description="Books|Electronics|Furniture|Clothing|Misc")
+    condition: str = Field(..., description="New|Like New|Used|Heavily Used")
+    approved: bool = Field(False, description="Visible in marketplace when approved or owner/admin viewing")
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+
+class Message(BaseModel):
+    listing_id: str
+    sender_id: str
+    receiver_id: str
+    content: str
+
+
+# ---------- Request/Response DTOs ----------
+
+class RegisterRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    avatar_url: Optional[HttpUrl] = None
+    campus: Optional[str] = None
+
+class ListingCreate(BaseModel):
+    title: str
+    description: str
+    price: float
+    category: str
+    condition: str
+    images: List[str] = []
+
+class ListingUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    category: Optional[str] = None
+    condition: Optional[str] = None
+    images: Optional[List[str]] = None
+
+class SendMessageRequest(BaseModel):
+    listing_id: str
+    to_user_id: str
+    content: str
+
+class ApproveListingRequest(BaseModel):
+    listing_id: str
+    approve: bool = True
+
+class BlockUserRequest(BaseModel):
+    user_id: str
+    block: bool = True
